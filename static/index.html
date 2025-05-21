@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Telephony Job Monitor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .job-form {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .updates {
+            margin-top: 20px;
+        }
+        .job-update {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+        }
+        .status-pending { color: #ffc107; }
+        .status-processing { color: #17a2b8; }
+        .status-completed { color: #28a745; }
+        .status-failed { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Telephony Job Monitor</h1>
+        
+        <div class="job-form">
+            <h2>Create New Job</h2>
+            <div class="form-group">
+                <label for="phone">Phone Number:</label>
+                <input type="tel" id="phone" placeholder="+1234567890" required>
+            </div>
+            <div class="form-group">
+                <label for="message">Message:</label>
+                <textarea id="message" rows="3" placeholder="Enter your message" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="scheduled-time">Scheduled Time (optional):</label>
+                <input type="datetime-local" id="scheduled-time">
+            </div>
+            <button onclick="createJob()">Create Job</button>
+        </div>
+
+        <div class="updates">
+            <h2>Job Status Updates</h2>
+            <div id="updates"></div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8000/ws/jobs');
+        const updatesDiv = document.getElementById('updates');
+
+        ws.onmessage = (event) => {
+            const update = JSON.parse(event.data);
+            const updateElement = document.createElement('div');
+            updateElement.className = 'job-update';
+            updateElement.innerHTML = `
+                <strong>Job ID:</strong> ${update.job_id}<br>
+                <strong>Status:</strong> <span class="status-${update.status.toLowerCase()}">${update.status}</span><br>
+                <strong>Type:</strong> ${update.type}<br>
+                <strong>Time:</strong> ${new Date().toLocaleTimeString()}
+            `;
+            updatesDiv.insertBefore(updateElement, updatesDiv.firstChild);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            alert('WebSocket connection error. Please refresh the page.');
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket connection closed');
+            alert('WebSocket connection closed. Please refresh the page.');
+        };
+
+        async function createJob() {
+            const phone = document.getElementById('phone').value;
+            const message = document.getElementById('message').value;
+            const scheduledTime = document.getElementById('scheduled-time').value;
+
+            if (!phone || !message) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                const response = await fetch('/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phone_number: phone,
+                        message: message,
+                        scheduled_time: scheduledTime || null
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    alert(`Job created successfully! Job ID: ${result.job_id}`);
+                    // Clear form
+                    document.getElementById('phone').value = '';
+                    document.getElementById('message').value = '';
+                    document.getElementById('scheduled-time').value = '';
+                } else {
+                    alert('Error creating job: ' + result.detail);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error creating job. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html> 
